@@ -1,0 +1,78 @@
+class ClientThread(Thread):
+    def __init__(self, server: Server, service_socket: socket.socket, address: str, eof_token: str):
+        Thread.__init__(self)
+        self.server_obj = server
+        self.service_socket = service_socket
+        self.address = address
+        self.eof_token = eof_token
+        self.cwd = ""
+
+    def run(self):
+        # print ("Connection from : ", self.address)
+        # raise NotImplementedError("Your implementation here.")
+        print(f"Connection from {self.address}")
+        random_token = generate_random_eof_token()
+        self.service_socket.sendall(random_token.encode())
+        print(f'Random_EOF_Token {random_token} has been sent to {self.address}')
+        self.cwd = os.getcwd()
+        working_directory_str = ''.join(str(self.server_obj.get_working_directory_info(self.cwd) + str(random_token)))
+        self.service_socket.sendall(working_directory_str.encode())
+        while True:
+            cmd = self.server_obj.receive_message_ending_with_token(self.service_socket, 1024, random_token)
+            cmd = cmd.decode()
+            if cmd.startswith("cd"):
+                x = cmd[3:].split(" ")
+                new_working_directory = x[0]
+                self.cwd = self.server_obj.handle_cd(self.cwd, new_working_directory)
+                print(f"The Directory has been changed and now the current directory is : {self.cwd}")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd.startswith("mkdir"):
+                x = cmd[6:].split(" ")
+                new_working_directory = x[0]
+                self.cwd = self.server_obj.handle_mkdir(self.cwd, new_working_directory)
+                print(f"The Directory has been created and now the current directory is : {self.cwd}")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd.startswith("rm"):
+                x = cmd[3:].split(" ")
+                filename = x[0]
+                self.server_obj.handle_rm(self.cwd, filename)
+                print(f"The file has been removed successfully")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd.startswith("ul"):
+                x = cmd[3:].split(" ")
+                filename = x[0]
+                self.server_obj.handle_ul(self.cwd, filename, self.service_socket, random_token)
+                print(f"The file {filename} has been uploaded successfully")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd.startswith("dl"):
+                x = cmd[3:].split(" ")
+                filename = x[0]
+                self.server_obj.handle_dl(self.cwd, filename, self.service_socket, random_token)
+                print(f"The file {filename} has been downloaded successfully")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd.startswith("info"):
+                x = cmd[5:].split(" ")
+                filename = x[0]
+                self.server_obj.handle_info(self.cwd, filename)
+                print(f"The size {filename} of the file has been sent successfully")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd.startswith("mv"):
+                x = cmd[3:].split(" ")
+                filename = x[0]
+                destination_name = x[1]
+                self.server_obj.handle_mv(self.cwd, filename, destination_name)
+                print(f"The {filename} has been moved or downloaded successfully")
+                # self.service_socket.sendall((self.cwd + random_token).encode())
+
+            elif cmd == 'exit':
+                break
+
+        time.sleep(1)
+        self.service_socket.sendall((self.cwd + random_token).encode())
+        print('Connection closed from:', self.address)
